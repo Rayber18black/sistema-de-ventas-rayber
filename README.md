@@ -1,37 +1,95 @@
-# Sistema de Ventas Comercial (POS) — Fase 5
+# Sistema de Ventas Comercial (POS)
 
-Sistema de **punto de venta** genérico para cualquier establecimiento, con instalador `.exe`.
-Web local (Node.js + React), base de datos **SQLite**, funcional **offline** y multi-dispositivo
-(PC, tablet y móvil por navegador en la red local).
+Sistema de **punto de venta** multi-dispositivo para cualquier establecimiento, con
+instalador `.exe` para Windows. Funciona en **red local** y **sin internet**: los datos
+se guardan en una base **SQLite** local.
 
-> Vé también: [ESPECIFICACION.md](./ESPECIFICACION.md) con los requisitos completos.
+- **Backend:** Node.js + Express + SQLite (API REST)
+- **Frontend:** React 18 + Vite
+- **Acceso:** PC, tablet y móvil por navegador en la misma red local
+
+> Documento de requisitos funcionales completo: [ESPECIFICACION.md](./ESPECIFICACION.md)
+> Seguimiento de mejoras: [MEJORAS.md](./MEJORAS.md)
 
 ---
 
-## ▶️ Ejecutar en desarrollo
+## 1. Requisitos
 
-Necesitas **Node.js 24** o superior.
+### Obligatorios
+
+| Requisito | Versión | Detalle |
+| --- | --- | --- |
+| **Node.js** | **24 o superior** | Obligatorio. El sistema usa el módulo nativo `node:sqlite`, que solo está estable desde Node 24. Con Node 22 o inferior el servidor no arranca. |
+| **npm** | 10 o superior | Viene incluido con Node.js. |
+| **Windows** | 10 / 11 | Diseñado y probado en Windows. Funciona también en Linux/macOS para desarrollo. |
+| Espacio en disco | ~500 MB | Incluye dependencias de `node_modules`. |
+
+Verifica tu versión con:
 
 ```bash
-# 1) Servidor (puerto 3000)
+node -v     # debe mostrar v24.x.x o superior
+npm -v
+```
+
+### Opcionales
+
+| Requisito | Para qué |
+| --- | --- |
+| **Inno Setup 6** | Solo para generar el instalador `setup.exe`. Descarga: https://jrsoftware.org/isdl.php |
+| Impresora térmica de red | Para tickets ESC/POS por IP (puerto 9100). Sin ella se imprime el ticket en PDF/papel. |
+| Impresora de etiquetas | Para generar etiquetas de precios con código de barras. |
+| Código de barras (lector) | Acelera el POS. También se puede buscar el producto por nombre. |
+| Conexión a internet | **Solo** para los bots de Telegram. La venta local funciona sin internet. |
+
+### No se requiere base de datos externa
+
+SQLite va **incorporado en Node.js**. No hay que instalar MySQL, PostgreSQL ni ningún
+servidor de base de datos.
+
+---
+
+## 2. Puesta en marcha
+
+### Opción A — Modo desarrollo (2 terminales)
+
+Necesitas abrir dos terminales.
+
+```bash
+# Terminal 1 — Servidor (puerto 3000)
 cd server
 npm install
 npm start
 
-# 2) Frontend (puerto 5173)
+# Terminal 2 — Frontend (puerto 5173, con recarga automática)
 cd client
 npm install
 npm run dev
 ```
 
-- Abre http://localhost:5173
-- **Credenciales por defecto:** usuario `root` / contraseña `root123`
-  (cámbiala después del primer ingreso en el menú de usuario).
+Abre **http://localhost:5173**
 
-> Si solo ejecutas el servidor (npm start), se sirve también la app compilada
-> (`client/dist`) en http://localhost:3000.
+El frontend de desarrollo redirige las llamadas a la API hacia
+`http://localhost:3000` (configurado en `client/vite.config.js`).
 
-## 🔨 Generar el `.exe` (portable, un solo archivo)
+### Opción B — Modo producción (un solo comando)
+
+Compilas el frontend una vez y el servidor lo sirve todo en el mismo puerto:
+
+```bash
+# 1) Compilar el frontend
+cd client
+npm install
+npm run build
+
+# 2) Arrancar el servidor (sirve la API + la web compilada)
+cd ../server
+npm install
+npm start
+```
+
+Abre **http://localhost:3000**
+
+### Opción C — Aplicación portable `.exe`
 
 ```bash
 cd instalador
@@ -39,146 +97,362 @@ npm install
 npm run build
 ```
 
-Resultado en `instalador/dist/`:
-- `POSVentas.exe` — binario único (Node empaquetado con el servidor, tecnología SEA).
-- `www/` — interfaz web que debe estar junto al .exe.
-- `INICIAR.bat` — abre el sistema.
+En `instalador/dist/` obtendras:
 
-La base de datos se guarda en `%APPDATA%\POSVentas`.
+- `POSVentas.exe` — ejecutable único (Node + servidor empaquetados, tecnología SEA).
+- `www/` — la interfaz web, debe ir junto al `.exe`.
+- `INICIAR.bat` — abre el sistema con doble clic.
 
-## 📦 Generar el INSTALADOR (setup.exe)
+### Opción D — Instalador `setup.exe` (para entregar a clientes)
 
 1. Instala **Inno Setup 6** (https://jrsoftware.org/isdl.php).
 2. Compila `instalador/plantilla-instalador.iss` desde la carpeta `instalador/dist/`.
-3. Entrega `POSVentas-Setup.exe` a tus clientes; instala servicio, acceso directo
-   y desinstalador.
+3. Entrega `POSVentas-Setup.exe`: instala, crea acceso directo y agrega desinstalador.
 
-## 🧱 Estructura
+---
+
+## 3. Credenciales de acceso
+
+| Usuario | Contrasena | Rol | Notas |
+| --- | --- | --- | --- |
+| `root` | `root123` | Root (administrador total) | Se crea automaticamente en la primera ejecucion. |
+
+**Cambia esta contrasena despues del primer ingreso** en el menu de usuario.
+
+> Esta contrasena es temporal y publica en este repositorio. En una instalacion real
+> cambiala de inmediato: anyone con acceso al codigo puede verla.
+
+Los demas usuarios se crean en **Usuarios**. Cada usuario tiene un rol, y cada rol
+tiene sus permisos. Roles incluidos por defecto:
+
+| Rol | Descripcion |
+| --- | --- |
+| **Root** | Acceso total, incluidos usuarios, roles y configuracion critica |
+| **Administrador** | Todo excepto administrar usuarios, roles y ajustes criticos |
+| **Gerente** | Operacion completa del negocio, sin tocar configuracion sensible |
+| **Vendedor** | Punto de venta, sus ventas y consulta de productos |
+| **Inventario** | Productos, compras, kardex y stock |
+
+Tambien puedes crear **roles a medida** con permisos personalizados.
+
+---
+
+## 4. Librerias necesarias
+
+Todas se instalan solas con `npm install`. No hay que configurar nada.
+
+### Backend (`server/package.json`)
+
+| Libreria | Version | Para que se usa |
+| --- | --- | --- |
+| `express` | ^4.19.2 | Servidor web y rutas de la API REST |
+| `bcryptjs` | ^2.4.3 | Encriptar contrasenas de usuarios |
+| `jsonwebtoken` | ^9.0.2 | Tokens de sesion (JWT) |
+| `cors` | ^2.8.5 | Permitir peticiones desde otros equipos de la red local |
+| `qrcode` | ^1.5.4 | Generar los codigos QR de acceso y de los bots |
+| `node:sqlite` | **incluido en Node 24** | Base de datos SQLite (no se instala) |
+
+### Frontend (`client/package.json`)
+
+| Libreria | Version | Para que se usa |
+| --- | --- | --- |
+| `react` | ^18.3.1 | Interfaz de usuario |
+| `react-dom` | ^18.3.1 | Montaje de React en el navegador |
+| `react-router-dom` | ^6.26.2 | Navegacion entre paginas |
+| `chart.js` | ^4.5.1 | Graficas |
+| `react-chartjs-2` | ^5.3.1 | Envoltorio de Chart.js para React |
+| `@heroicons/react` | ^2.2.0 | Iconos de la interfaz |
+
+Herramientas de desarrollo:
+
+| Libreria | Version | Para que se usa |
+| --- | --- | --- |
+| `vite` | ^5.4.8 | Empaquetador y servidor de desarrollo |
+| `@vitejs/plugin-react` | ^4.3.1 | Soporte de JSX en Vite |
+
+### Empaquetado del `.exe` (`instalador/package.json`)
+
+| Libreria | Version | Para que se usa |
+| --- | --- | --- |
+| `esbuild` | ^0.24.2 | Empaquetar el servidor en un unico `.exe` |
+| `postject` | ^1.0.0-alpha.6 | Inyectar el binario de Node dentro del ejecutable |
+
+> **Nota sobre `client/dist`:** esta carpeta (el frontend compilado) no se sube al
+> repositorio. Se genera con `npm run build`. En el modo produccion el servidor la
+> sirve automaticamente.
+
+---
+
+## 5. Donde se guardan los datos
+
+Todo se guarda en un unico archivo de base de datos:
 
 ```
-server/       API REST (Express) + SQLite + JWT
-  src/        db, seed, rutas (auth, users, products, sales, cash, settings, dashboard, reports,
-              customers, expenses, purchases, quotes, branches, print, refunds, telegram)
-client/       Frontend React (Vite) — POS, dashboard, productos, caja, clientes, reportes, etc.
-instalador/   Empaquetado .exe (esbuild + SEA + postject) y plantilla Inno Setup
+Windows:  %APPDATA%\POSVentas\posv.db
+Linux/Mac:  ~/.POSVentas/posv.db   (si no existe APPDATA)
 ```
 
-## 🤖 Bots de Telegram (Fase 2, ampliada en Fase 5)
+La primera vez que arranca, el sistema crea la base de datos, los roles, los permisos
+y algunos productos de demostracion (como *Arroz 5kg*), que puedes eliminar.
 
-En **Configuración → Bots de Telegram** (activando el módulo *Bots de Telegram*) se administran
-**varios bots con acciones separadas según su tipo**:
+En esa misma carpeta se genera `secret.key`, la clave de firma de los tokens de sesion.
+**No la compartas ni la subas a internet.**
+
+### Variables de entorno (opcionales)
+
+| Variable | Por defecto | Para que sirve |
+| --- | --- | --- |
+| `PORT` | `3000` | Puerto del servidor. Ej.: `PORT=8080 npm start` |
+| `POSV_DATA` | `%APPDATA%\POSVentas` | Carpeta donde guardar la base de datos |
+| `DB_PATH` | `<POSV_DATA>\posv.db` | Ruta exacta del archivo de base de datos |
+| `JWT_SECRET` | se genera solo | Clave de firma de tokens |
+
+En Windows (PowerShell):
+
+```powershell
+$env:PORT='8080'; npm start
+```
+
+---
+
+## 6. Estructura del proyecto
+
+```
+sistema-de-ventas-rayber/
+├── server/                  API REST (Express) + SQLite + JWT
+│   ├── src/
+│   │   ├── index.js         Arranque del servidor y middlewares
+│   │   ├── db.js            Conexion y esquema de la base de datos
+│   │   ├── seed.js          Datos iniciales: roles, permisos, usuario root
+│   │   ├── auth.js          Firmado y verificacion de tokens
+│   │   ├── middleware/      Middleware de autenticacion/permisos
+│   │   ├── routes/          Rutas de la API
+│   │   │   ├── auth.js          Inicio de sesion y perfil
+│   │   │   ├── users.js         Usuarios
+│   │   │   ├── access.js        Roles y permisos
+│   │   │   ├── products.js      Productos, stock y kardex
+│   │   │   ├── sales.js         Ventas (punto de venta)
+│   │   │   ├── customers.js     Clientes, creditos y cobranza
+│   │   │   ├── cash.js          Apertura, cierre y arqueo de caja
+│   │   │   ├── expenses.js      Gastos y caja chica
+│   │   │   ├── purchases.js     Compras, proveedores y ordenes
+│   │   │   ├── quotes.js        Cotizaciones
+│   │   │   ├── refunds.js       Devoluciones
+│   │   │   ├── reports.js       Reportes y exportaciones
+│   │   │   ├── dashboard.js     Dashboard, calendario y series
+│   │   │   ├── branches.js      Sucursales
+│   │   │   ├── settings.js      Configuracion del negocio
+│   │   │   ├── print.js         Tickets e impresion
+│   │   │   └── telegram.js      Bots de Telegram
+│   │   ├── sales-service.js  Logica compartida de ventas
+│   │   ├── thermal.js        Impresion ESC/POS
+│   │   ├── reprice.js        Recalculo de precios
+│   │   ├── telegram.js       Cliente de Telegram
+│   │   ├── bot-commands.js   Comandos y permisos de los bots
+│   │   └── utils.js          Utilidades
+│   └── package.json
+│
+├── client/                  Frontend React (Vite)
+│   ├── src/
+│   │   ├── main.jsx             Punto de entrada
+│   │   ├── App.jsx              Rutas y carga diferida de paginas
+│   │   ├── api.js               Cliente HTTP y manejo del token
+│   │   ├── auth.jsx             Contexto de sesion y permisos
+│   │   ├── i18n.jsx             Multi-idioma ES/EN
+│   │   ├── theme.jsx            Tema claro/oscuro
+│   │   ├── branch.js            Sucursal activa
+│   │   ├── toast.jsx            Notificaciones
+│   │   ├── fmt.js               Formato de moneda y fechas
+│   │   ├── printer.js           Impresion de tickets
+│   │   ├── CalendarPicker.jsx   Selector de fecha tipo calendario
+│   │   ├── ErrorBoundary.jsx    Manejo de errores
+│   │   ├── QrModal.jsx          Visor de codigos QR
+│   │   ├── InboxPanel.jsx       Panel de bandeja de entrada
+│   │   ├── styles.css           Estilos globales
+│   │   └── pages/               Paginas
+│   │       ├── Login.jsx           Inicio de sesion
+│   │       ├── Pos.jsx             Punto de venta
+│   │       ├── Dashboard.jsx       Dashboard con KPIs
+│   │       ├── Sales.jsx           Historial de ventas y devoluciones
+│   │       ├── Products.jsx        Productos e inventario
+│   │       ├── Customers.jsx       Clientes, creditos y cobranza
+│   │       ├── Cash.jsx            Caja (apertura, cierre, arqueo)
+│   │       ├── Expenses.jsx        Gastos
+│   │       ├── Purchases.jsx       Compras y proveedores
+│   │       ├── Quotes.jsx          Cotizaciones
+│   │       ├── Reports.jsx         Reportes
+│   │       ├── Users.jsx           Usuarios
+│   │       ├── Settings.jsx        Configuracion
+│   │       └── BotConfig.jsx       Bots de Telegram
+│   ├── vite.config.js
+│   └── package.json
+│
+├── instalador/              Empaquetado del .exe (esbuild + SEA + postject)
+│   ├── build-exe.ps1
+│   ├── plantilla-instalador.iss
+│   └── sea-config.json
+│
+├── ESPECIFICACION.md        Requisitos funcionales
+└── MEJORAS.md               Seguimiento de mejoras
+```
+
+---
+
+## 7. Funciones del sistema
+
+### Punto de venta
+- Venta con **multiples metodos de pago simultaneos** (efectivo, tarjeta, credito, transferencia, mixto).
+- Busqueda por **codigo de barras** o por nombre, con cliente opcional.
+- **Descuento** por venta y precios por lista (minorista, mayorista, especial).
+- **Folio automatico** de venta y **ticket imprimible** (papel o ESC/POS).
+- Alta rapida de cliente desde el propio POS, con C.I./RIF.
+- Validacion de stock al cobrar y control de credito del cliente.
+
+### Productos e inventario
+- Catalogo con codigo de barras, imagen, categorias, impuestos y margins.
+- Precios por lista, stock minimo/maximo y alerta de stock bajo.
+- Movimientos de inventario (entradas, salidas, ajustes, devoluciones) y **kardex** completo.
+- **Importar y exportar CSV** del catalogo.
+- Control de ganancia: margen por producto y ganancia realizada.
+
+### Clientes y creditos
+- Ficha con historial de compras, saldo, abonos y **estado de cuenta**.
+- **Cobranza**: registrar abonos y ver cuentas por cobrar.
+- Segmentacion, busqueda rapida y exportacion.
+
+### Caja
+- Apertura y cierre por turno, movimientos de efectivo y **arqueo**.
+- Control por sucursal y metodo de pago.
+- Gastos y caja chica con categorias.
+
+### Compras y proveedores
+- Sugerencia de **reabastecimiento** segun stock minimo/maximo.
+- Ordenes de compra con proveedores, recepcion de mercancía y actualizacion de costos.
+- Historial de precio de compra por producto.
+
+### Reportes y dashboard
+- Dashboard con KPIs, tendency, ventas por hora, top de productos/clientes, metodos de pago.
+- **Selector de tiempo tipo calendario** con intensidad por dia, rango de fechas y anotaciones.
+- Filtro por sucursal en todo el analisis.
+- Reportes por periodo, producto, vendedor, metodo de pago, inventario, ganancias, cuentas por cobrar.
+- **Exportacion a CSV** de la mayoria de los reportes.
+- Modo **Cajero** (vista simplificada sin costos ni ganancias).
+
+### Otros modulos
+- **Cotizaciones**: presupuestos con estado y conversion a venta.
+- **Devoluciones**: quedan pendientes hasta que el dueno las aprueba.
+- **Multimoneda**: moneda base y monedas secundarias con tipo de cambio.
+- **Multisucursal**: ventas, caja, gastos y ordenes por sucursal.
+- **Bots de Telegram** para clientes, dueno y vendedores (ver seccion 8).
+- **QR de acceso** para abrir el sistema desde el celular en la red local.
+- Tema claro/oscuro y multi-idioma ES/EN.
+
+---
+
+## 8. Bots de Telegram (opcional)
+
+En **Configuracion → Bots de Telegram** se administran varios bots con acciones
+separadas segun su tipo:
 
 | Tipo | Acciones |
 | --- | --- |
-| **Cliente** | consultas de precio, apartados, compras a distancia, confirmación de pago, promociones |
-| **Dueño** | aprobar/cancelar pedidos, resolver devoluciones, reportes diarios, stock bajo, comunicados |
-| **Vendedor** | avisos de pedidos/entregas, comunicados del dueño y notificaciones |
+| **Cliente** | Consulta de precios, apartados, compras a distancia, confirmar pago, promociones |
+| **Dueno** | Aprobar/cancelar pedidos, resolver devoluciones, reportes diarios, stock bajo, comunicados |
+| **Vendedor** | Avisos de pedidos y entregas, comunicados del dueno |
 
-1. Crea cada bot con **@BotFather** en Telegram y pega su **token** en *Configuración → Bots de Telegram*
-   (al guardar se comprueba con Telegram y se captura el `@usuario` para el **QR**).
-2. Desde tu Telegram, escribe a tu bot y regístrate:
-   `/registrar CODIGO TuNombre TuTelefono` (clave de *Dueño* o de *Vendedor* según corresponda).
-3. Cada bot muestra su **QR** (enlace directo `t.me/<usuario>`) para que los clientes lo escaneen.
+**Puesta en marcha:**
 
-**Clientes** pueden usar el bot tipo *cliente* sin registrarse:
-- `/precio P001` — precio y stock por código, id o nombre.
-- `/apartar P001 2 Nombre Telefono` — apartado (aviso al dueño/vendedores).
-- `/comprar P001 1 Retira Telefono` — pedido con pago a distancia.
-- `/pague RO-000001` — el cliente confirma que ya pagó.
-- `/promos` — promociones vigentes.
+1. Crea cada bot con [@BotFather](https://t.me/BotFather) en Telegram y pega su **token**
+   en *Configuracion → Bots de Telegram*. Al guardar se verifica con Telegram y se
+   captura el `@usuario` para generar el **QR**.
+2. Registra a los usuarios del equipo:
+   `/registrar CODIGO TuNombre TuTelefono`
+   (el codigo es una clave de *Dueno* o *Vendedor* segun corresponda).
+3. Cada bot muestra su **QR** (`t.me/<usuario>`) para compartirlo.
 
-**Dueño:**
-- `/pagar RO-000001` — verifica el pago y crea la venta (se marca como *venta a distancia*).
-- `/cancelar RO-000001` — cancela el pedido.
-- `/aprobar ID` y `/rechazar ID` — aprueba/rechaza devoluciones.
-- `/reporte` (incluye ventas de bot), `/stock`, `/comunicado Texto`, `/chats`.
-- Reporte diario a la hora configurada y **alertas de stock bajo**.
+**Comandos para clientes** (no necesitan registrarse):
 
-**Promociones (solo Root)** — *Configuración → Promociones*: envío masivo a los clientes que hayan
-interactuado con un bot y tengan **teléfono** registrado (se enlaza automáticamente al usar
-`/comprar`, `/apartar` o `/pague`). El mensaje admite `{nombre}` para personalizar.
+| Comando | Que hace |
+| --- | --- |
+| `/precio P001` | Precio y stock de un producto |
+| `/apartar P001 2 Nombre Telefono` | Apartar mercaderia (avisa al dueno) |
+| `/comprar P001 1 Retira Telefono` | Pedido con pago a distancia |
+| `/pague RO-000001` | Confirma que ya pago |
+| `/promos` | Promociones vigentes |
 
-**Devoluciones**: el cajero inicia la devolución en *Ventas → Devoluciones*; queda **PENDIENTE** hasta que el dueño la aprueba (desde el bot o desde la app con permiso). Al aprobarse se repone el inventario y queda registro de nota de crédito.
+**Comandos del dueno:**
 
-## ✅ Funciones
+| Comando | Que hace |
+| --- | --- |
+| `/pagar RO-000001` | Verifica el pago y crea la venta |
+| `/cancelar RO-000001` | Cancela el pedido |
+| `/aprobar ID` · `/rechazar ID` | Resuelve una devolucion |
+| `/reporte` · `/stock` · `/comunicado Texto` · `/chats` | Reportes y comunicados |
 
-- Login por usuario y **permisos por rol** (Root, Administrador, Gerente, Vendedor, Inventario + roles a medida).
-- Productos con código de barras, imagen, categorías, precios (minorista/mayorista/especial), impuestos, stock mín/máx.
-- Inventario con movimientos (entradas/salidas/ajustes/devoluciones) y **kardex**.
-- **Venta en el POS** con múltiples métodos de pago simultáneos, descuento, clientes, folio automático y ticket imprimible.
-- **Caja**: apertura/cierre por turno, movimientos de efectivo y arqueo.
-- **Reportes** por periodo/producto/vendedor, métodos de pago e inventario; exportación CSV.
-- **Bot de Telegram** para clientes (consulta, apartados, pedidos remotos) y para el dueño (aprobación de devoluciones, reportes, alertas, comunicación con vendedores).
-- Configuración del negocio, moneda base (USD, BOB, VES, PEN…), módulos on/off y métodos de pago (solo root).
-- **Multisucursal**: ventas/caja/gastos/órdenes por sucursal (stock compartido).
-- **Créditos y cobranza**: saldo por cliente, abonos, estado de cuenta y reporte CxC.
-- **Impresión térmica** ESC/POS por red (auto-ticket al cobrar, reimpresión y página de prueba).
-- **Ganancia**: % de margen por producto y ganancia potencial del inventario, ganancia realizada del día en el Dashboard y por periodo en Reportes.
-- **Variarios bots de Telegram** con acciones separadas (clientes/dueño/vendedores), **QR** por bot y **promociones** masivas al teléfono de los clientes (solo Root).
-- **QR de acceso a la red local** (IP+puerto) para abrir el sistema desde el celular.
-- **Cédula/RIF** en clientes y **alta rápida de cliente desde el POS**.
-- Estadísticas interactivas (barras/donut), toasts a la izquierda y sin scroll accidental de la rueda en números.
+Las ventas creadas desde el bot quedan marcadas como `BOT` y se distinguen en el
+dashboard y los reportes. Las devoluciones las aprueba el dueno (desde el bot o desde
+la app con permiso) y al aprobarse se repone el inventario.
 
-## 🧾 Fase 3 (cotizaciones, compras, gastos y multimoneda)
+> Requiere salida a internet (solo el envio a `api.telegram.org`). La venta local
+> sigue funcionando sin internet.
 
-- **Cotizaciones** (`Ventas → Cotizaciones` o menú *Cotizaciones*): presupuestos para clientes con
-  estado (PENDIENTE → CONVERTIDA/CANCELADA) y botón **Convertir en venta**.
-- **Compras** (*Compras*): *Sugerencia de reabastecimiento* calculada con stock mínimo/máximo,
-  órdenes de compra con proveedores, y **Recibir** que entra el stock y actualiza el costo.
-- **Gastos** (*Gastos*): caja chica y gastos con categorías, filtros por fecha/tipo y total del periodo.
-- **Importar/Exportar CSV** en *Productos*: sube tu listado (crea o actualiza por código) o descárgalo.
-- **Multimoneda** (*Configuración → Multimoneda*): activa el módulo y configura monedas secundarias
-  (código, símbolo, tipo de cambio); el POS muestra el equivalente aproximado bajo el total.
+---
 
-## 🏬 Fase 4 (multisucursal, créditos y cobranza, impresión térmica)
+## 9. Seguridad
 
-- **Multisucursal** (*Configuración → Sucursales*): crea/edita/desactiva sucursales. Un selector en la
-  barra superior fija la sucursal activa; las **ventas, caja, gastos y órdenes de compra** quedan
-  registrados por sucursal y cada lista/filtro permite ver por sucursal. El stock (bodega) es único
-  para toda la instalación, según la especificación.
-- **Créditos y cobranza (CxC)**: al vender con método *crédito* se registra saldo a favor del negocio
-  por cliente. En *Clientes* hay botón **Cobrar** (abono por monto/método/nota) y un detalle con
-  historial y **estado de cuenta** (monto y saldo acumulado). El *Dashboard* muestra el total por cobrar
-  y *Reportes* incluye la sección **Cuentas por cobrar** (deudores con teléfono, saldo, límite y última venta).
-- **Impresión térmica ESC/POS** (*Configuración → Impresión térmica*): activa el módulo y configura la
-  dirección IP-puerto raw (9100) y el ancho de papel (58/80 mm). Tras cobrar en el POS el ticket se
-  imprime automáticamente; también hay botón **Térmica** en el historial de ventas, y una **página de
-  prueba** en la configuración. Si la impresora no es de red, usa la opción *Papel* del ticket o un
-  emulador de puerto 9100.
+- Contrasenas encriptadas con **bcrypt**.
+- Sesiones con **JWT**; la clave se genera en el primer arranque y se guarda en
+  `secret.key` con permisos restringidos.
+- **Permisos por rol** validados en el servidor (no solo en la interfaz).
+- Todas las operaciones de escritura quedan auditadas con usuario, fecha y accion.
 
-## ✨ Fase 5 (bot múltiple, ganancias, QR, interfaz minimalista)
+**Antes de exponerlo a internet:**
 
-- **Bot de Telegram múltiple** (*Configuración → Bots de Telegram*): varios bots con papeles
-  separados (*cliente*, *owner*, *seller*), cada uno con su token, estado en vivo y **QR** de enlace
-  (`t.me/<usuario>`). El bot de la Fase 2 se migra automáticamente como bot *cliente*.
-- **Acciones separadas**: los comandos de clientes (`/precio`, `/apartar`, `/comprar`, `/pague`,
-  `/promos`) solo responden en bots de tipo cliente; los de dueño/vendedores están restringidos a
-  chats autenticados con sus claves, evitando confusiones entre botas.
-- **Promociones (solo Root)**: permiso nuevo `marketing.promos`. *Configuración → Promociones*
-  envía un mensaje a todos los clientes enlazados por **teléfono** con un bot; guarda historial
-  (título, fecha, alcanzados). Mensaje personalizable con `{nombre}`.
-- **Ganancias**: margen `(precio−costo)/precio` por producto y por lista de precio en *Productos*;
-  ganancia potencial por producto y total del inventario; **ganancia realizada** (ventas) en
-  *Dashboard* (día) y *Reportes* (periodo).
-- **Ventas a distancia**: cada venta creada desde el bot queda marcada `source=BOT`; el *Dashboard*
-  y *Reportes* muestran conteo/total, y *Reportes* incluye pedidos en seguimiento.
-- **QR de acceso**: *Configuración → Acceso a distancia* lista las IPs locales y genera el QR de
-  `http://IP:puerto` para abrir el sistema desde el móvil en la misma red.
-- **Clientes con C.I./RIF** y **alta rápida de cliente en el POS** (botón **+** junto al selector);
-  si el teléfono ya existe, se vincula sin duplicar.
-- **Moneda base configurable** (*Configuración → Negocio*): selector con monedas comunes
-  (USD, EUR, BOB, VES, PEN…) para símbolo y código.
-- **Interfaz minimalista**: gráficas SVG propias e interactivas (barras con detalle por clic, donut
-  de métodos de pago), toasts abajo a la izquierda, rueda del ratón bloqueada sobre campos
-  numéricos, scrollbars finos y tarjetas destacadas para ganancias.
+1. Cambia la contrasena del `root`.
+2. No expongas el puerto del servidor directamente a internet.
+3. Sirve el sistema por **HTTPS** (por ejemplo, con un proxy inverso como Nginx o Caddy).
+4. Haz copias de seguridad periodicas del archivo `posv.db`.
+5. No subas `posv.db` ni `secret.key` a ningun repositorio.
 
-## 🔮 Siguientes fases
+---
 
-- **Fase 6:** (definir según la especificación — ej. bodegas por sucursal, fidelización activa o comercio electrónico).
+## 10. Problemas frecuentes
 
-## ⚠️ Notas
+| Sintoma | Causa y solucion |
+| --- | --- |
+| `Cannot find module 'node:sqlite'` | Node.js muy antiguo. Instala **Node 24 o superior**. |
+| `better-sqlite3` / error de compilacion al instalar | No aplica: se usa el SQLite nativo de Node. Si ves esto, estas ejecutando otra version del proyecto. |
+| El frontend no carga datos en desarrollo | El servidor no esta corriendo en el puerto 3000, o el proxy de `client/vite.config.js` no coincide con el puerto del servidor. |
+| "Faltan permisos" | Tu usuario no tiene ese permiso. Un `root` o Administrador debe otorgarlo en **Usuarios → Roles**. |
+| La impresora termica no imprime | Verifica la IP y el puerto 9100 en *Configuracion → Impresion termica*, y que la impresora este en la misma red. Usa la opcion *Papel* como alternativa. |
+| Se borro la base de datos | Se guarda en `%APPDATA%\POSVentas`. No borres esa carpeta. |
+| Cambie el puerto y no responde | Recuerda: `PORT=8080` cambia el puerto del servidor; actualiza tambien el proxy de `client/vite.config.js` en desarrollo. |
 
-- Para el bot es necesario que este equipo tenga salida a Internet (solo el polling hacia `api.telegram.org`; la venta local sigue siendo offline).
-- Los datos de demostración (producto "Arroz 5kg", etc.) se crean automáticamente en la primera ejecución y se pueden eliminar.
-- La base de datos se guarda en `%APPDATA%\POSVentas`.
-- El nodo backend NO debe exponerse a internet sin protegerse (cambia la contraseña del root y usa solo la red local).
+---
+
+## 11. Compilar y publicar
+
+```bash
+# Compilar el frontend
+cd client && npm run build
+
+# Inicializar el repositorio
+git init -b main
+git add -A
+git commit -m "mi mensaje"
+git remote add origin https://github.com/Rayber18black/sistema-de-ventas-rayber.git
+git push -u origin main
+```
+
+Lo que **nunca** se sube al repositorio (ya esta en `.gitignore`):
+
+- `node_modules/`
+- `server/data/` y cualquier `*.db` (los datos reales del negocio)
+- `secret.key`, `.env`
+- `client/dist/` e `instalador/dist/` (se regeneran al compilar)
+
+---
+
+## 12. Licencia
+
+Uso interno. Modificalo libremente segun necesites.
