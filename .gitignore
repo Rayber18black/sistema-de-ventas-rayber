@@ -1,0 +1,49 @@
+# Dependencias
+node_modules/
+.npm/
+
+# Builds
+client/dist/
+instalador/dist/
+instalador/build/
+*.tsbuildinfo
+
+# Datos de la base de datos (NUNCA subir datos reales)
+server/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+server/data/secret.key
+
+# Secretos / entorno
+.env
+.env.*
+!.env.example
+
+# Backups generados
+backups/
+*.backup
+*.bak
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Sistema / editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
