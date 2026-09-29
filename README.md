@@ -50,9 +50,29 @@ servidor de base de datos.
 
 ## 2. Puesta en marcha
 
+> ### ⚡ Inicio rápido (si descargaste el ZIP o clonaste el repositorio)
+>
+> El frontend **ya viene compilado** en `client/dist/`, así que solo necesitas esto:
+>
+> ```bash
+> cd server
+> npm install
+> npm start
+> ```
+>
+> Abre **http://localhost:3000** e ingresa con `root` / `root123`.
+>
+> Eso es todo. No hace falta compilar nada ni instalar nada más.
+>
+> La primera vez se crea la base de datos, los roles, los permisos y algunos
+> productos de ejemplo, y quedan guardados en `%APPDATA%\POSVentas`.
+>
+> **Requisitos mínimos:** Node.js 24 o superior y una terminal. Nada más.
+
 ### Opción A — Modo desarrollo (2 terminales)
 
-Necesitas abrir dos terminales.
+Úsala solo si vas a **cambiar el código**: recarga la página automáticamente al
+guardar. Necesitas abrir dos terminales.
 
 ```bash
 # Terminal 1 — Servidor (puerto 3000)
@@ -71,9 +91,10 @@ Abre **http://localhost:5173**
 El frontend de desarrollo redirige las llamadas a la API hacia
 `http://localhost:3000` (configurado en `client/vite.config.js`).
 
-### Opción B — Modo producción (un solo comando)
+### Opción B — Modo producción (recompilar el frontend)
 
-Compilas el frontend una vez y el servidor lo sirve todo en el mismo puerto:
+Si **cambiaste el código del frontend** y quieres ver esos cambios en el modo normal,
+recompila:
 
 ```bash
 # 1) Compilar el frontend
@@ -177,9 +198,21 @@ Herramientas de desarrollo:
 | `esbuild` | ^0.24.2 | Empaquetar el servidor en un unico `.exe` |
 | `postject` | ^1.0.0-alpha.6 | Inyectar el binario de Node dentro del ejecutable |
 
-> **Nota sobre `client/dist`:** esta carpeta (el frontend compilado) no se sube al
-> repositorio. Se genera con `npm run build`. En el modo produccion el servidor la
-> sirve automaticamente.
+> **Sobre `client/dist/`:** esta carpeta (el frontend ya compilado) **sí está
+> incluida** en el repositorio, a propósito. Por eso basta con
+> `npm install` en `server` y `npm start` para tener el sistema funcionando,
+> sin compilar nada.
+>
+> **Si modificas el frontend**, debes recompilar y volver a subirlo, o los demás
+> seguirán viendo la versión anterior:
+>
+> ```bash
+> cd client
+> npm run build
+> git add client/dist
+> git commit -m "actualizar interfaz"
+> git push
+> ```
 
 ---
 
@@ -422,6 +455,9 @@ la app con permiso) y al aprobarse se repone el inventario.
 | --- | --- |
 | `Cannot find module 'node:sqlite'` | Node.js muy antiguo. Instala **Node 24 o superior**. |
 | `better-sqlite3` / error de compilacion al instalar | No aplica: se usa el SQLite nativo de Node. Si ves esto, estas ejecutando otra version del proyecto. |
+| **La API responde pero al abrir el navegador no sale nada** | Falta la interfaz compilada: ejecuta `cd client && npm install && npm run build`. |
+| **"Puerto 3000 ya está en uso"** | Ya hay un sistema corriendo. Cierra la otra ventana, o usa otro puerto: `PORT=8080 npm start` (y en desarrollo actualiza el proxy de `client/vite.config.js`). |
+| **Aparece "Cannot GET /" o pantalla en blanco** | Estás en modo desarrollo (`npm run dev`, puerto 5173) sin el servidor iniciado. Arranca también el servidor (puerto 3000). |
 | El frontend no carga datos en desarrollo | El servidor no esta corriendo en el puerto 3000, o el proxy de `client/vite.config.js` no coincide con el puerto del servidor. |
 | "Faltan permisos" | Tu usuario no tiene ese permiso. Un `root` o Administrador debe otorgarlo en **Usuarios → Roles**. |
 | La impresora termica no imprime | Verifica la IP y el puerto 9100 en *Configuracion → Impresion termica*, y que la impresora este en la misma red. Usa la opcion *Papel* como alternativa. |
@@ -430,13 +466,34 @@ la app con permiso) y al aprobarse se repone el inventario.
 
 ---
 
-## 11. Compilar y publicar
+## 11. Actualizar el sistema y publicar cambios
+
+### Si cambias el FRONTEND (interfaz)
+
+Debes recompilar y subir la carpeta `dist`, o los demás seguirán viendo la versión
+anterior:
 
 ```bash
-# Compilar el frontend
-cd client && npm run build
+cd client
+npm run build          # regenera client/dist
+git add client/dist
+git commit -m "actualizar interfaz"
+git push
+```
 
-# Inicializar el repositorio
+### Si cambias el BACKEND (servidor)
+
+No hay que compilar nada. Solo sube el código:
+
+```bash
+git add -A
+git commit -m "mi mensaje"
+git push
+```
+
+### Primera vez que publicas este repositorio
+
+```bash
 git init -b main
 git add -A
 git commit -m "mi mensaje"
@@ -449,7 +506,10 @@ Lo que **nunca** se sube al repositorio (ya esta en `.gitignore`):
 - `node_modules/`
 - `server/data/` y cualquier `*.db` (los datos reales del negocio)
 - `secret.key`, `.env`
-- `client/dist/` e `instalador/dist/` (se regeneran al compilar)
+- `instalador/dist/` (el `.exe` generado se regenera al compilar)
+
+> `client/dist/` **sí se sube** (a propósito) para que el sistema funcione al
+> descargarlo. Es la única carpeta compilada que se versiona.
 
 ---
 

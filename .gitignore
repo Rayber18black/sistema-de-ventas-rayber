@@ -3,7 +3,10 @@ node_modules/
 .npm/
 
 # Builds
-client/dist/
+# NOTA: client/dist/ SI se versiona a proposito, para que al descargar el
+# repositorio el sistema ya tenga la interfaz compilada y solo baste con
+# "npm install" en server + "npm start".
+# Si cambias el frontend, recompila y vuelve a subirlo (npm run build).
 instalador/dist/
 instalador/build/
 *.tsbuildinfo
